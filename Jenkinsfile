@@ -2,34 +2,41 @@ pipeline {
     agent any
 
     environment {
+        IMAGE_NAME = "docker-image"              // name of the Docker image
         REGISTRY = "192.168.100.2:5000"          // private registry on manager
-        IMAGE    = "${REGISTRY}/myapp:${env.BUILD_NUMBER}"
-        GITHUB_CREDS = credentials('github-credentials')
+        IMAGE    = "${REGISTRY}/${IMAGE_NAME}:${env.BUILD_NUMBER}"
+        GITHUB_CREDS = credentials('github-credentials') // get GitHub credentials from Jenkins credentials
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout([
-                    $class: 'GitSCM',
+                    $class: 'GitSCM', // use Git SCM istallation from Jenkins plugins 
                     branches: [[name: '*/main']], // specify your branch here
                     userRemoteConfigs: [[
                         url: 'https://github.com/chivhor/devops-course.git',
                         credentialsId: 'github-credentials'
                     ]]
                 ])
-            }
+            } 
         }
         
         stage('Build') {
-            steps {
-                sh 'docker build -t $IMAGE .'
+            script {
+                // Build Docker image
+                docker.build(IMAGE_NAME)
             }
         }
         
-        stage('Push') {
+        stage('Run Container') {
             steps {
-                sh 'docker push $IMAGE'
+                script {
+                    // Run container from built image (optional)
+                    docker.image(IMAGE_NAME).inside {
+                        sh 'echo Hello from inside container!'
+                    }
+                }
             }
         }
         
