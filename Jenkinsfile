@@ -3,8 +3,6 @@ pipeline {
 
     environment {
         IMAGE_NAME = "docker-image"              // name of the Docker image
-        REGISTRY = "192.168.100.2:5000"          // private registry on manager
-        IMAGE    = "${REGISTRY}/myapp:${env.BUILD_NUMBER}"
         TAG      = "latest"
     }
 
@@ -26,17 +24,14 @@ pipeline {
             steps {
                 script {
                     // Build Docker image
-                    // docker.build(IMAGE_NAME)
-                    sh """
-                      docker compose -f docker-compose.yml up -d
-                    """
+                    sh "docker build -t ${IMAGE_NAME}:${TAG} ."
                 }
             }
         }
         
         stage('Push to DockerHub') {
             steps {
-                // Grab creds safely
+                // Grab creds safely from Jenkins credential store
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'docker-hub-credentials',          // ID you set above
@@ -60,27 +55,26 @@ pipeline {
             steps {
                 sh '''
                   # Optional: remove existing stack (clean slate)
-                  docker -H tcp://192.168.100.2:2375 stack rm myapp
+                  docker -H tcp://swarm-manager:2375 stack rm myapp
         
                   # Wait a bit to ensure all services shut down
                   sleep 5
         
                   # Recreate the updated stack file with image from Docker Hub
                   cat > docker-stack.yml <<EOF
-                  version: "3.9"
                   services:
                     web:
                       image: $DOCKER_USER/${IMAGE_NAME}:${TAG}
                       deploy:
-                        replicas: 2
+                        replicas: 3
                         restart_policy:
                           condition: on-failure
                       ports:
-                        - "9000:80"
+                        - "8000:80"
                   EOF
         
                   # Deploy fresh stack
-                  docker -H tcp://192.168.100.2:2375 stack deploy -c docker-stack.yml myapp
+                  docker -H tcp://swarm-manager:2375 stack deploy -c docker-stack.yml myapp
                 '''
             }
         }
