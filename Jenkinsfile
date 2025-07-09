@@ -2,16 +2,18 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "docker-image"              // name of the Docker image
-        TAG      = "latest"
+        IMAGE_NAME = "myapp"
+        TAG = "${env.BUILD_NUMBER}"
+        GITHUB_CREDS = credentials('github-credentials')
+        DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout([
-                    $class: 'GitSCM', // use Git SCM istallation from Jenkins plugins 
-                    branches: [[name: '*/main']], // specify your branch here
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
                     userRemoteConfigs: [[
                         url: 'https://github.com/chivhor/devops-course.git',
                         credentialsId: 'github-credentials'
@@ -23,7 +25,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    // Build Docker image
+                    // Build Docker image with tag
                     sh "docker build -t ${IMAGE_NAME}:${TAG} ."
                 }
             }
@@ -31,59 +33,48 @@ pipeline {
         
         stage('Push to DockerHub') {
             steps {
-                // Grab creds safely from Jenkins credential store
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'docker-hub-credentials',          // ID you set above
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                sh '''
-                    # Login (stdin masks the password)
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-
-                    # Push tag
-                    docker tag ${IMAGE_NAME}:${TAG} $DOCKER_USER/${IMAGE_NAME}:${TAG}
-                    docker push $DOCKER_USER/${IMAGE_NAME}:${TAG}
-                '''
+                script {
+                    // Login to Docker Hub
+                    // Using single-quotes instead of double-quotes when referencing these sensitive environment variables prevents this type of leaking
+                    sh 'echo ${DOCKER_HUB_CREDS_PSW} | docker login -u ${DOCKER_HUB_CREDS_USR} --password-stdin'
+                    
+                    // Push the image
+                    sh "docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}"
+                    sh "docker push ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}"
                 }
             }
         }
-
+        
         stage('Deploy') {
             steps {
-                sh '''
-                  # Optional: remove existing stack (clean slate)
-                  docker -H tcp://swarm-manager:2375 stack rm myapp
-        
-                  # Wait a bit to ensure all services shut down
-                  sleep 5
-        
-                  # Recreate the updated stack file with image from Docker Hub
-                  cat > docker-stack.yml <<EOF
-                  services:
-                    web:
-                      image: $DOCKER_USER/${IMAGE_NAME}:${TAG}
-                      deploy:
-                        replicas: 3
-                        restart_policy:
-                          condition: on-failure
-                      ports:
-                        - "8000:80"
-                  EOF
-        
-                  # Deploy fresh stack
-                  docker -H tcp://swarm-manager:2375 stack deploy -c docker-stack.yml myapp
-                '''
+                    // Optional: Remove old stack
+                    sh 'docker stack rm jenkins-swarm || true'
+                    sleep(5)
+
+                    // Use writeFile instead of cat > <<EOF
+                    writeFile file: 'docker-stack.yml', text: """
+version: "3.8"
+services:
+  web:
+    image: ${env.DOCKER_HUB_CREDS_USR}/${env.IMAGE_NAME}:${env.TAG}
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8000:80"
+"""
+
+                    // Deploy new stack
+                    sh 'docker stack deploy -c docker-stack.yml jenkins-swarm'
             }
         }
     }
-
-    post { // Cleanup actions after the pipeline execution
+    
+    post {
         always {
             // Clean up - remove local images to save space
-            sh "docker rmi ${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${TAG} ${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:latest || true"
+            sh "docker rmi ${IMAGE_NAME}:${TAG} || true"
             
             // Logout from Docker Hub
             sh "docker logout"

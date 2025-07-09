@@ -16,15 +16,7 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <h1>Deploy Vite App on Docker Swarm Cluster with Jenkins</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
+      <h1>Deploy Vite on Docker Swarm with Jenkins</h1>
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
