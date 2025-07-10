@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "myapp"
+        IMAGE_NAME = "vite-project"
         TAG = "${env.BUILD_NUMBER}"
         GITHUB_CREDS = credentials('github-credentials')
         DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
@@ -47,9 +47,13 @@ pipeline {
                     // Using single-quotes instead of double-quotes when referencing these sensitive environment variables prevents this type of leaking
                     sh 'echo ${DOCKER_HUB_CREDS_PSW} | docker login -u ${DOCKER_HUB_CREDS_USR} --password-stdin'
                     
-                    // Push the image
-                    sh "docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}"
-                    sh "docker push ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}"
+                    // Tag docker image
+                    sh 'docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}'
+                    sh 'docker tag ${IMAGE_NAME}:${TAG} ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:latest'
+
+                    // Push docker image to Docker Hub
+                    sh 'docker push ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}'
+                    sh 'docker push ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:latest'
                 }
             }
         }
@@ -65,7 +69,7 @@ pipeline {
 version: "3.8"
 services:
   web:
-    image: ${env.DOCKER_HUB_CREDS_USR}/${env.IMAGE_NAME}:${env.TAG}
+    image: ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:latest
     deploy:
       replicas: 3
       restart_policy:
@@ -80,10 +84,13 @@ services:
         }
     }
     
-    post {
+    post { // Cleanup and notifications after all stages
         always {
             // Clean up - remove local images to save space
-            sh "docker rmi ${IMAGE_NAME}:${TAG} || true"
+            sh "docker image rm ${IMAGE_NAME}:${TAG}"
+
+            // Remove Docker Hub images to save space
+            sh "docker image rm ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:${TAG}"
             
             // Logout from Docker Hub
             sh "docker logout"
