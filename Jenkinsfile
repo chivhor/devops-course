@@ -30,6 +30,15 @@ pipeline {
                 }
             }
         }
+
+        stage('Scan with Trivy') {
+            steps {
+                script {
+                    sh "trivy image ${IMAGE_NAME}:${TAG}"
+                    sh "trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_NAME}:${TAG}"
+                }
+            }
+        }
         
         stage('Push to DockerHub') {
             steps {
@@ -48,8 +57,8 @@ pipeline {
         stage('Deploy') {
             steps {
                     // Optional: Remove old stack
-                    sh 'docker stack rm jenkins-swarm || true'
-                    sleep(5)
+                    // sh 'docker stack rm jenkins-swarm || true'
+                    // sleep(5)
 
                     // Use writeFile instead of cat > <<EOF
                     writeFile file: 'docker-stack.yml', text: """
