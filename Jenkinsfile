@@ -66,10 +66,10 @@ pipeline {
                             configName: 'swarm-master',
                             transfers: [
                                 sshTransfer(
-                                    sourceFiles: 'docker-stack.yml',
+                                    sourceFiles: 'docker-compose.yml',
                                     removePrefix: '',
                                     remoteDirectory: '',
-                                    execCommand: 'docker stack deploy --compose-file docker-stack.yml devops-course'
+                                    execCommand: 'docker stack deploy --compose-file docker-compose.yml devops-course'
                                 )
                             ]
                         )
