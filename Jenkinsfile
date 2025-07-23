@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "vite-project"
+        IMAGE_NAME = "final-project"
         TAG = "${env.BUILD_NUMBER}"
         GITHUB_CREDS = credentials('github-credentials')
         DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
@@ -58,28 +58,23 @@ pipeline {
             }
         }
         
-        stage('Deploy') {
+        stage('Deploy to Swarm Master') {
             steps {
-                    // Optional: Remove old stack
-                    // sh 'docker stack rm jenkins-swarm || true'
-                    // sleep(5)
-
-                    // Use writeFile instead of cat > <<EOF
-                    writeFile file: 'docker-stack.yml', text: """
-version: "3.8"
-services:
-  web:
-    image: ${DOCKER_HUB_CREDS_USR}/${IMAGE_NAME}:latest
-    deploy:
-      replicas: 3
-      restart_policy:
-        condition: on-failure
-    ports:
-      - "8000:80"
-"""
-
-                    // Deploy new stack
-                    sh 'docker stack deploy -c docker-stack.yml jenkins-swarm'
+                script {
+                    sshPublisher(publishers: [
+                        sshPublisherDesc(
+                            configName: 'swarm-master',
+                            transfers: [
+                                sshTransfer(
+                                    sourceFiles: 'docker-stack.yml',
+                                    removePrefix: '',
+                                    remoteDirectory: '',
+                                    execCommand: 'docker stack deploy --compose-file docker-stack.yml devops-course'
+                                )
+                            ]
+                        )
+                    ])
+                }
             }
         }
     }
