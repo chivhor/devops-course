@@ -17,9 +17,6 @@ function App() {
         </a>
       </div>
       <h1>Deploy Vite on Docker Swarm with Jenkins</h1>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
   )
 }
