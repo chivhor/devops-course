@@ -19,7 +19,7 @@ pipeline {
                         credentialsId: 'github-credentials'
                     ]]
                 ])
-            } 
+            }
         }
         
         stage('Build') {
